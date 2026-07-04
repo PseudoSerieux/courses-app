@@ -38,7 +38,7 @@ Une fois connectée, la page affiche un lien du type `http://localhost:3000?join
 
 1. Push ce repo sur GitHub.
 2. Sur [vercel.com](https://vercel.com), importe le repo.
-3. Ajoute les mêmes variables d'env (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SITE_URL` = ton URL Vercel finale).
+3. Ajoute les mêmes variables d'env (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SITE_URL` = ton URL Vercel finale).
 4. Ajoute l'URL Vercel dans les Redirect URLs Supabase (`https://ton-app.vercel.app/auth/callback`).
 
 ## Ce qui est fait ✅

@@ -32,14 +32,17 @@ export default async function Home({
 
   // First time here: create a personal list and default categories
   if (!listId) {
-    const { data: newList } = await supabase
-      .from("lists")
-      .insert({ name: "Courses" })
-      .select()
+    const { data: newList, error } = await supabase
+      .rpc("create_list_with_membership", { list_name: "Courses" })
       .single();
 
-    listId = newList!.id;
-    await supabase.from("list_members").insert({ list_id: listId, user_id: user.id });
+    if (error || !newList) {
+      throw new Error(
+        `Impossible de créer la liste : ${error?.message ?? "réponse vide du serveur"}`
+      );
+    }
+
+    listId = (newList as { id: string }).id;
 
     const defaults = [
       { emoji: "🥩", name: "Viandes", position: 0 },
