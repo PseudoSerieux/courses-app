@@ -105,24 +105,55 @@ export default function ShoppingList({ activeListId, ownListId, prefillJoinId }:
 
   const saveCategory = async (name: string, emoji: string) => {
     if (modalCategory === "new") {
+      const id = crypto.randomUUID();
       const position = categories.length;
-      await supabase.from("categories").insert({ list_id: listId, name, emoji, position });
+      const optimistic: Category = {
+        id,
+        list_id: listId,
+        name,
+        emoji,
+        position,
+        is_collapsed: false,
+        created_at: new Date().toISOString(),
+      };
+      setCategories((prev) => [...prev, optimistic]);
+      const { error } = await supabase
+        .from("categories")
+        .insert({ id, list_id: listId, name, emoji, position });
+      if (error) setCategories((prev) => prev.filter((c) => c.id !== id));
     } else if (modalCategory) {
-      await supabase.from("categories").update({ name, emoji }).eq("id", modalCategory.id);
+      const { id } = modalCategory;
+      setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, name, emoji } : c)));
+      await supabase.from("categories").update({ name, emoji }).eq("id", id);
     }
     setModalCategory(null);
   };
 
   const confirmDeleteCategory = async () => {
     if (!categoryToDelete) return;
-    await supabase.from("categories").delete().eq("id", categoryToDelete.id);
+    const { id } = categoryToDelete;
+    setCategories((prev) => prev.filter((c) => c.id !== id));
     setCategoryToDelete(null);
+    await supabase.from("categories").delete().eq("id", id);
   };
 
   // --- Item handlers ---
   const addItem = async (category: Category, name: string) => {
+    const id = crypto.randomUUID();
     const position = items.filter((i) => i.category_id === category.id).length;
-    await supabase.from("items").insert({ category_id: category.id, name, position });
+    const optimistic: Item = {
+      id,
+      category_id: category.id,
+      name,
+      is_checked: false,
+      position,
+      created_at: new Date().toISOString(),
+    };
+    setItems((prev) => [...prev, optimistic]);
+    const { error } = await supabase
+      .from("items")
+      .insert({ id, category_id: category.id, name, position });
+    if (error) setItems((prev) => prev.filter((i) => i.id !== id));
   };
 
   const toggleItem = async (item: Item) => {
@@ -133,6 +164,7 @@ export default function ShoppingList({ activeListId, ownListId, prefillJoinId }:
   };
 
   const renameItem = async (item: Item, newName: string) => {
+    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, name: newName } : i)));
     await supabase.from("items").update({ name: newName }).eq("id", item.id);
   };
 
