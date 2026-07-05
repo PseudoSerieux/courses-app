@@ -1,21 +1,30 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Category, CategoryWithItems, Item } from "@/lib/types";
 import CategoryCard from "./CategoryCard";
 import CategoryModal from "./CategoryModal";
 import ConfirmDialog from "./ConfirmDialog";
-import ExportButton from "./ExportButton";
+import SettingsMenu from "./SettingsMenu";
 import LinkedListsModal from "./LinkedListsModal";
+import Toast, { type ToastState } from "./Toast";
 
 type ShoppingListProps = {
   activeListId: string;
   ownListId: string;
+  currentUserId: string;
   prefillJoinId?: string;
 };
 
-export default function ShoppingList({ activeListId, ownListId, prefillJoinId }: ShoppingListProps) {
+const DELETE_GRACE_PERIOD_MS = 5000;
+
+export default function ShoppingList({
+  activeListId,
+  ownListId,
+  currentUserId,
+  prefillJoinId,
+}: ShoppingListProps) {
   const listId = activeListId;
   const supabase = useMemo(() => createClient(), []);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -24,6 +33,9 @@ export default function ShoppingList({ activeListId, ownListId, prefillJoinId }:
   const [modalCategory, setModalCategory] = useState<Category | null | "new">(null);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [linkModalOpen, setLinkModalOpen] = useState(Boolean(prefillJoinId));
+  const [toast, setToast] = useState<ToastState>(null);
+
+  const pendingDeletes = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // Initial load
   useEffect(() => {
@@ -66,7 +78,7 @@ export default function ShoppingList({ activeListId, ownListId, prefillJoinId }:
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "items" },
+        { event: "*", schema: "public", table: "items", filter: `list_id=eq.${listId}` },
         (payload) => {
           setItems((prev) => {
             if (payload.eventType === "DELETE") {
@@ -86,6 +98,33 @@ export default function ShoppingList({ activeListId, ownListId, prefillJoinId }:
       supabase.removeChannel(channel);
     };
   }, [supabase, listId]);
+
+  // Detects being unlinked/kicked from elsewhere (another tab, or the list
+  // owner removing you) and reloads so the server picks up the new active list.
+  useEffect(() => {
+    const channel = supabase
+      .channel(`profile-${currentUserId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "profiles",
+          filter: `user_id=eq.${currentUserId}`,
+        },
+        (payload) => {
+          const incoming = payload.new as { active_list_id: string };
+          if (incoming.active_list_id !== activeListId) {
+            window.location.reload();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, currentUserId, activeListId]);
 
   const categoriesWithItems: CategoryWithItems[] = categories.map((c) => ({
     ...c,
@@ -123,18 +162,47 @@ export default function ShoppingList({ activeListId, ownListId, prefillJoinId }:
       if (error) setCategories((prev) => prev.filter((c) => c.id !== id));
     } else if (modalCategory) {
       const { id } = modalCategory;
+      const previous = { name: modalCategory.name, emoji: modalCategory.emoji };
       setCategories((prev) => prev.map((c) => (c.id === id ? { ...c, name, emoji } : c)));
       await supabase.from("categories").update({ name, emoji }).eq("id", id);
+      setToast({
+        message: "Catégorie modifiée",
+        onUndo: async () => {
+          setCategories((prev) =>
+            prev.map((c) => (c.id === id ? { ...c, ...previous } : c))
+          );
+          await supabase.from("categories").update(previous).eq("id", id);
+        },
+      });
     }
     setModalCategory(null);
   };
 
-  const confirmDeleteCategory = async () => {
+  const confirmDeleteCategory = () => {
     if (!categoryToDelete) return;
-    const { id } = categoryToDelete;
-    setCategories((prev) => prev.filter((c) => c.id !== id));
+    const category = categoryToDelete;
+    setCategories((prev) => prev.filter((c) => c.id !== category.id));
     setCategoryToDelete(null);
-    await supabase.from("categories").delete().eq("id", id);
+
+    const timeout = setTimeout(async () => {
+      pendingDeletes.current.delete(category.id);
+      await supabase.from("categories").delete().eq("id", category.id);
+    }, DELETE_GRACE_PERIOD_MS);
+    pendingDeletes.current.set(category.id, timeout);
+
+    setToast({
+      message: `"${category.name}" supprimée`,
+      onUndo: () => {
+        const pending = pendingDeletes.current.get(category.id);
+        if (pending) {
+          clearTimeout(pending);
+          pendingDeletes.current.delete(category.id);
+        }
+        setCategories((prev) =>
+          prev.some((c) => c.id === category.id) ? prev : [...prev, category]
+        );
+      },
+    });
   };
 
   // --- Item handlers ---
@@ -144,6 +212,7 @@ export default function ShoppingList({ activeListId, ownListId, prefillJoinId }:
     const optimistic: Item = {
       id,
       category_id: category.id,
+      list_id: listId,
       name,
       is_checked: false,
       position,
@@ -152,7 +221,7 @@ export default function ShoppingList({ activeListId, ownListId, prefillJoinId }:
     setItems((prev) => [...prev, optimistic]);
     const { error } = await supabase
       .from("items")
-      .insert({ id, category_id: category.id, name, position });
+      .insert({ id, category_id: category.id, list_id: listId, name, position });
     if (error) setItems((prev) => prev.filter((i) => i.id !== id));
   };
 
@@ -164,13 +233,40 @@ export default function ShoppingList({ activeListId, ownListId, prefillJoinId }:
   };
 
   const renameItem = async (item: Item, newName: string) => {
+    const previousName = item.name;
     setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, name: newName } : i)));
     await supabase.from("items").update({ name: newName }).eq("id", item.id);
+    setToast({
+      message: "Élément renommé",
+      onUndo: async () => {
+        setItems((prev) =>
+          prev.map((i) => (i.id === item.id ? { ...i, name: previousName } : i))
+        );
+        await supabase.from("items").update({ name: previousName }).eq("id", item.id);
+      },
+    });
   };
 
-  const deleteItem = async (item: Item) => {
+  const deleteItem = (item: Item) => {
     setItems((prev) => prev.filter((i) => i.id !== item.id));
-    await supabase.from("items").delete().eq("id", item.id);
+
+    const timeout = setTimeout(async () => {
+      pendingDeletes.current.delete(item.id);
+      await supabase.from("items").delete().eq("id", item.id);
+    }, DELETE_GRACE_PERIOD_MS);
+    pendingDeletes.current.set(item.id, timeout);
+
+    setToast({
+      message: `"${item.name}" supprimé`,
+      onUndo: () => {
+        const pending = pendingDeletes.current.get(item.id);
+        if (pending) {
+          clearTimeout(pending);
+          pendingDeletes.current.delete(item.id);
+        }
+        setItems((prev) => (prev.some((i) => i.id === item.id) ? prev : [...prev, item]));
+      },
+    });
   };
 
   return (
@@ -179,16 +275,11 @@ export default function ShoppingList({ activeListId, ownListId, prefillJoinId }:
         <h1 className="rounded-full bg-gradient-to-r from-violet to-pink px-5 py-2 font-display text-lg font-semibold text-white shadow-card">
           Courses
         </h1>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setLinkModalOpen(true)}
-            aria-label="Gérer les listes liées"
-            className="flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-xs font-semibold text-ink/70 shadow-card transition hover:text-violet"
-          >
-            🪢 Listes liées
-          </button>
-          <ExportButton categories={categoriesWithItems} />
-        </div>
+        <SettingsMenu
+          categories={categoriesWithItems}
+          onOpenLinkedLists={() => setLinkModalOpen(true)}
+          onExported={() => setToast({ message: "Copié pour Notes 📋" })}
+        />
       </header>
 
       {activeListId !== ownListId && (
@@ -225,6 +316,7 @@ export default function ShoppingList({ activeListId, ownListId, prefillJoinId }:
       </button>
 
       <CategoryModal
+        key={modalCategory === "new" ? "new" : modalCategory?.id ?? "closed"}
         open={modalCategory !== null}
         initialName={modalCategory && modalCategory !== "new" ? modalCategory.name : ""}
         initialEmoji={modalCategory && modalCategory !== "new" ? modalCategory.emoji : "📦"}
@@ -245,8 +337,11 @@ export default function ShoppingList({ activeListId, ownListId, prefillJoinId }:
         onClose={() => setLinkModalOpen(false)}
         ownListId={ownListId}
         activeListId={activeListId}
+        currentUserId={currentUserId}
         prefillListId={prefillJoinId}
       />
+
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>
   );
 }

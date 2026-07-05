@@ -63,7 +63,7 @@ export default function ItemRow({ item, onToggle, onRename, onDelete }: ItemRowP
       <button
         onClick={() => onDelete(item)}
         aria-label={`Supprimer ${item.name}`}
-        className="shrink-0 rounded-full p-1 text-ink/30 opacity-0 transition hover:bg-pink-soft hover:text-pink group-hover:opacity-100 focus-visible:opacity-100"
+        className="shrink-0 rounded-full p-1.5 text-ink/25 transition hover:bg-pink-soft hover:text-pink"
       >
         ✕
       </button>

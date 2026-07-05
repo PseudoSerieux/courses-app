@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type HistoryEntry = { list_id: string };
+type MemberEntry = { user_id: string; email: string };
 
 type LinkedListsModalProps = {
   open: boolean;
   onClose: () => void;
   ownListId: string;
   activeListId: string;
+  currentUserId: string;
   prefillListId?: string;
 };
 
@@ -25,10 +27,10 @@ function CopyableId({ value }: { value: string }) {
   return (
     <button
       onClick={copy}
-      className="flex w-full items-center justify-between gap-2 rounded-xl border border-ink/10 bg-paper px-3 py-2 text-left font-mono text-xs text-ink/70 transition hover:border-violet/40"
+      className="flex w-full min-w-0 items-center justify-between gap-2 rounded-xl border border-ink/10 bg-paper px-3 py-2 text-left font-mono text-xs text-ink/70 transition hover:border-violet/40"
       title="Copier"
     >
-      <span className="truncate">{value}</span>
+      <span className="min-w-0 flex-1 truncate">{value}</span>
       <span className="shrink-0 text-violet">{copied ? "✓ Copié" : "⧉ Copier"}</span>
     </button>
   );
@@ -39,11 +41,13 @@ export default function LinkedListsModal({
   onClose,
   ownListId,
   activeListId,
+  currentUserId,
   prefillListId,
 }: LinkedListsModalProps) {
   const supabase = createClient();
   const [targetId, setTargetId] = useState(prefillListId ?? "");
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [members, setMembers] = useState<MemberEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -57,8 +61,12 @@ export default function LinkedListsModal({
         .select("list_id")
         .order("created_at", { ascending: true });
       setHistory((data ?? []).filter((row) => row.list_id !== ownListId));
+
+      const { data: memberData } = await supabase
+        .rpc("list_members_info", { target_list_id: ownListId });
+      setMembers((memberData ?? []).filter((m: MemberEntry) => m.user_id !== currentUserId));
     })();
-  }, [open, prefillListId, ownListId, supabase]);
+  }, [open, prefillListId, ownListId, currentUserId, supabase]);
 
   if (!open) return null;
 
@@ -84,6 +92,16 @@ export default function LinkedListsModal({
     runAndReload(supabase.rpc("unlink_active_list"));
   };
 
+  const handleKick = async (userId: string) => {
+    setError(null);
+    const { error: rpcError } = await supabase.rpc("kick_member", { target_user_id: userId });
+    if (rpcError) {
+      setError(rpcError.message ?? "Une erreur est survenue, réessayez.");
+      return;
+    }
+    setMembers((prev) => prev.filter((m) => m.user_id !== userId));
+  };
+
   const isOnOwnList = activeListId === ownListId;
 
   return (
@@ -94,7 +112,7 @@ export default function LinkedListsModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-sm rounded-xl2 bg-white p-6 shadow-pop animate-pop-in"
+        className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-xl2 bg-white p-6 shadow-pop animate-pop-in"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between">
@@ -102,7 +120,7 @@ export default function LinkedListsModal({
           <button
             onClick={onClose}
             aria-label="Fermer"
-            className="rounded-full p-1 text-ink/40 hover:bg-ink/5"
+            className="shrink-0 rounded-full p-1 text-ink/40 hover:bg-ink/5"
           >
             ✕
           </button>
@@ -111,8 +129,8 @@ export default function LinkedListsModal({
         <p className="mt-3 text-xs uppercase tracking-wide text-ink/40">
           Vous consultez actuellement
         </p>
-        <div className="mt-1.5 flex items-center gap-2">
-          <div className="flex-1">
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <div className="min-w-0 flex-1 basis-full sm:basis-auto">
             <CopyableId value={activeListId} />
           </div>
           {!isOnOwnList && (
@@ -136,17 +154,44 @@ export default function LinkedListsModal({
           <CopyableId value={ownListId} />
         </div>
 
+        {members.length > 0 && (
+          <>
+            <div className="my-5 h-px bg-ink/10" />
+            <p className="text-xs uppercase tracking-wide text-ink/40">
+              Personnes sur votre liste
+            </p>
+            <ul className="mt-1.5 space-y-1.5">
+              {members.map((member) => (
+                <li
+                  key={member.user_id}
+                  className="flex items-center justify-between gap-2 rounded-xl border border-ink/10 bg-paper px-3 py-2"
+                >
+                  <span className="min-w-0 flex-1 truncate text-xs text-ink/70">
+                    {member.email}
+                  </span>
+                  <button
+                    onClick={() => handleKick(member.user_id)}
+                    className="shrink-0 rounded-full bg-pink-soft px-3 py-1.5 text-xs font-semibold text-pink hover:bg-pink hover:text-white"
+                  >
+                    Retirer
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+
         <div className="my-5 h-px bg-ink/10" />
 
         <p className="text-xs uppercase tracking-wide text-ink/40">
           Se lier à une autre liste
         </p>
-        <div className="mt-1.5 flex gap-2">
+        <div className="mt-1.5 flex flex-wrap gap-2">
           <input
             value={targetId}
             onChange={(e) => setTargetId(e.target.value)}
             placeholder="Collez un identifiant de liste"
-            className="min-w-0 flex-1 rounded-full border border-ink/10 bg-paper px-4 py-2 text-xs outline-none focus:border-violet focus:ring-2 focus:ring-violet/30"
+            className="min-w-0 flex-1 basis-full rounded-full border border-ink/10 bg-paper px-4 py-2 text-xs outline-none focus:border-violet focus:ring-2 focus:ring-violet/30 sm:basis-auto"
             onKeyDown={(e) => e.key === "Enter" && handleLink()}
           />
           <button
@@ -166,8 +211,8 @@ export default function LinkedListsModal({
             </p>
             <ul className="mt-1.5 space-y-1.5">
               {history.map((entry) => (
-                <li key={entry.list_id} className="flex items-center gap-2">
-                  <div className="flex-1">
+                <li key={entry.list_id} className="flex flex-wrap items-center gap-2">
+                  <div className="min-w-0 flex-1 basis-full sm:basis-auto">
                     <CopyableId value={entry.list_id} />
                   </div>
                   {entry.list_id !== activeListId && (

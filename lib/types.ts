@@ -18,6 +18,7 @@ export type Category = {
 export type Item = {
   id: string;
   category_id: string;
+  list_id: string;
   name: string;
   is_checked: boolean;
   position: number;

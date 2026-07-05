@@ -41,6 +41,7 @@ export default async function Home({
       <ShoppingList
         activeListId={profile.active_list_id}
         ownListId={profile.own_list_id}
+        currentUserId={user.id}
         prefillJoinId={searchParams.join}
       />
     </main>

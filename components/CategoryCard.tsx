@@ -56,7 +56,7 @@ export default function CategoryCard({
           </svg>
         </button>
 
-        <div className="flex shrink-0 items-center gap-1 opacity-0 transition group-hover:opacity-100">
+        <div className="flex shrink-0 items-center gap-1 text-ink/25 transition">
           <button
             onClick={() => onEdit(category)}
             aria-label="Modifier la catégorie"
