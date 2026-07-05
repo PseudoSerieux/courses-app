@@ -1,3 +1,10 @@
+export type Profile = {
+  user_id: string;
+  own_list_id: string;
+  active_list_id: string;
+  created_at: string;
+};
+
 export type Category = {
   id: string;
   list_id: string;

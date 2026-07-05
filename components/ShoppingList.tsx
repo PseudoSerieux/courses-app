@@ -7,14 +7,23 @@ import CategoryCard from "./CategoryCard";
 import CategoryModal from "./CategoryModal";
 import ConfirmDialog from "./ConfirmDialog";
 import ExportButton from "./ExportButton";
+import LinkedListsModal from "./LinkedListsModal";
 
-export default function ShoppingList({ listId }: { listId: string }) {
+type ShoppingListProps = {
+  activeListId: string;
+  ownListId: string;
+  prefillJoinId?: string;
+};
+
+export default function ShoppingList({ activeListId, ownListId, prefillJoinId }: ShoppingListProps) {
+  const listId = activeListId;
   const supabase = useMemo(() => createClient(), []);
   const [categories, setCategories] = useState<Category[]>([]);
   const [items, setItems] = useState<Item[]>([]);
 
   const [modalCategory, setModalCategory] = useState<Category | null | "new">(null);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
+  const [linkModalOpen, setLinkModalOpen] = useState(Boolean(prefillJoinId));
 
   // Initial load
   useEffect(() => {
@@ -134,12 +143,31 @@ export default function ShoppingList({ listId }: { listId: string }) {
 
   return (
     <div className="mx-auto max-w-lg px-4 pb-16 pt-8">
-      <header className="mb-5 flex items-center justify-between">
+      <header className="mb-5 flex items-center justify-between gap-2">
         <h1 className="rounded-full bg-gradient-to-r from-violet to-pink px-5 py-2 font-display text-lg font-semibold text-white shadow-card">
           Courses
         </h1>
-        <ExportButton categories={categoriesWithItems} />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setLinkModalOpen(true)}
+            aria-label="Gérer les listes liées"
+            className="flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-xs font-semibold text-ink/70 shadow-card transition hover:text-violet"
+          >
+            🪢 Listes liées
+          </button>
+          <ExportButton categories={categoriesWithItems} />
+        </div>
       </header>
+
+      {activeListId !== ownListId && (
+        <button
+          onClick={() => setLinkModalOpen(true)}
+          className="mb-4 flex w-full items-center gap-2 rounded-xl bg-violet-soft px-4 py-2.5 text-left text-xs font-medium text-violet-deep transition hover:bg-violet/20"
+        >
+          <span aria-hidden>🪢</span>
+          Vous consultez une liste liée, pas la vôtre — touchez ici pour gérer
+        </button>
+      )}
 
       <div className="space-y-3">
         {categoriesWithItems.map((category) => (
@@ -178,6 +206,14 @@ export default function ShoppingList({ listId }: { listId: string }) {
         description="Tous les éléments de cette catégorie seront supprimés définitivement."
         onConfirm={confirmDeleteCategory}
         onCancel={() => setCategoryToDelete(null)}
+      />
+
+      <LinkedListsModal
+        open={linkModalOpen}
+        onClose={() => setLinkModalOpen(false)}
+        ownListId={ownListId}
+        activeListId={activeListId}
+        prefillListId={prefillJoinId}
       />
     </div>
   );

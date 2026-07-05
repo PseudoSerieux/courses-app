@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import LoginForm from "@/components/LoginForm";
 import ShoppingList from "@/components/ShoppingList";
+import type { Profile } from "@/lib/types";
 
 export default async function Home({
   searchParams,
@@ -14,55 +15,34 @@ export default async function Home({
 
   if (!user) return <LoginForm />;
 
-  // Joining a partner's list via a shared invite link (?join=<list_id>)
-  if (searchParams.join) {
-    await supabase
-      .from("list_members")
-      .upsert({ list_id: searchParams.join, user_id: user.id }, { onConflict: "list_id,user_id" });
-  }
-
-  const { data: membership } = await supabase
-    .from("list_members")
-    .select("list_id")
+  let { data: profile } = await supabase
+    .from("profiles")
+    .select("*")
     .eq("user_id", user.id)
-    .limit(1)
-    .maybeSingle();
+    .maybeSingle<Profile>();
 
-  let listId = membership?.list_id as string | undefined;
+  // Safety net: creates the profile (and, if needed, a first list) for
+  // accounts that existed before the linking system was introduced.
+  if (!profile) {
+    const { data: created, error } = await supabase
+      .rpc("ensure_profile")
+      .single<Profile>();
 
-  // First time here: create a personal list and default categories
-  if (!listId) {
-    const { data: newList, error } = await supabase
-      .rpc("create_list_with_membership", { list_name: "Courses" })
-      .single();
-
-    if (error || !newList) {
+    if (error || !created) {
       throw new Error(
-        `Impossible de créer la liste : ${error?.message ?? "réponse vide du serveur"}`
+        `Impossible de préparer votre profil : ${error?.message ?? "réponse vide du serveur"}`
       );
     }
-
-    listId = (newList as { id: string }).id;
-
-    const defaults = [
-      { emoji: "🥩", name: "Viandes", position: 0 },
-      { emoji: "🍎", name: "Fruits", position: 1 },
-      { emoji: "🥫", name: "Conserves", position: 2 },
-    ];
-    await supabase.from("categories").insert(defaults.map((d) => ({ ...d, list_id: listId })));
+    profile = created;
   }
 
   return (
     <main>
-      <div className="mx-auto max-w-lg px-4 pt-3">
-        <p className="text-center text-xs text-ink/40">
-          Invitez votre moitié en partageant :{" "}
-          <span className="font-medium text-violet">
-            {process.env.NEXT_PUBLIC_SITE_URL ?? ""}?join={listId}
-          </span>
-        </p>
-      </div>
-      <ShoppingList listId={listId!} />
+      <ShoppingList
+        activeListId={profile.active_list_id}
+        ownListId={profile.own_list_id}
+        prefillJoinId={searchParams.join}
+      />
     </main>
   );
 }

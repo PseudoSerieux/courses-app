@@ -26,7 +26,13 @@ export default function LoginForm() {
       });
       if (error) {
         setMessage({ type: "error", text: error.message });
-      } else if (!data.session) {
+      } else if (data.session) {
+        // Email confirmation is disabled: the account is created and the
+        // session is already active — just enter the app immediately.
+        window.location.href = "/";
+        return;
+      } else {
+        // Email confirmation is still required on the Supabase project
         setMessage({
           type: "info",
           text: "Compte créé ✉️ Confirmez votre email (un lien vous a été envoyé), puis connectez-vous avec votre mot de passe.",
