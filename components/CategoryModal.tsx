@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type CategoryModalProps = {
   open: boolean;
@@ -21,6 +21,17 @@ export default function CategoryModal({
 }: CategoryModalProps) {
   const [name, setName] = useState(initialName);
   const [emoji, setEmoji] = useState(initialEmoji);
+
+  // Re-sync internal state every time the modal opens, otherwise leftover
+  // values from a previous session (e.g. an emptied "new category" attempt)
+  // would stick around — including the Save button staying disabled even
+  // though you're now editing a category that already has a name.
+  useEffect(() => {
+    if (open) {
+      setName(initialName);
+      setEmoji(initialEmoji);
+    }
+  }, [open, initialName, initialEmoji]);
 
   if (!open) return null;
 

@@ -3,7 +3,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Category, CategoryWithItems, Item } from "@/lib/types";
-import CategoryCard from "./CategoryCard";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
+import SortableCategoryCard from "./SortableCategoryCard";
 import CategoryModal from "./CategoryModal";
 import ConfirmDialog from "./ConfirmDialog";
 import SettingsMenu from "./SettingsMenu";
@@ -130,6 +140,33 @@ export default function ShoppingList({
     ...c,
     items: items.filter((i) => i.category_id === c.id).sort((a, b) => a.position - b.position),
   }));
+
+  // Only the dedicated grip icon starts a drag (see dragHandleProps in
+  // CategoryCard), so a small activation distance is enough to avoid
+  // accidental drags without interfering with normal scrolling.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 100, tolerance: 5 } })
+  );
+
+  const handleCategoryDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = categories.findIndex((c) => c.id === active.id);
+    const newIndex = categories.findIndex((c) => c.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(categories, oldIndex, newIndex).map((c, index) => ({
+      ...c,
+      position: index,
+    }));
+    setCategories(reordered);
+
+    await Promise.all(
+      reordered.map((c) => supabase.from("categories").update({ position: c.position }).eq("id", c.id))
+    );
+  };
 
   // --- Category handlers ---
   const toggleCollapse = async (category: Category) => {
@@ -293,19 +330,30 @@ export default function ShoppingList({
       )}
 
       <div className="space-y-3">
-        {categoriesWithItems.map((category) => (
-          <CategoryCard
-            key={category.id}
-            category={category}
-            onToggleCollapse={toggleCollapse}
-            onEdit={(c) => setModalCategory(c)}
-            onDelete={(c) => setCategoryToDelete(c)}
-            onAddItem={addItem}
-            onToggleItem={toggleItem}
-            onRenameItem={renameItem}
-            onDeleteItem={deleteItem}
-          />
-        ))}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleCategoryDragEnd}
+        >
+          <SortableContext
+            items={categoriesWithItems.map((c) => c.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {categoriesWithItems.map((category) => (
+              <SortableCategoryCard
+                key={category.id}
+                category={category}
+                onToggleCollapse={toggleCollapse}
+                onEdit={(c) => setModalCategory(c)}
+                onDelete={(c) => setCategoryToDelete(c)}
+                onAddItem={addItem}
+                onToggleItem={toggleItem}
+                onRenameItem={renameItem}
+                onDeleteItem={deleteItem}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
       </div>
 
       <button

@@ -2,13 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
-html,
-body {
-  height: 100%;
+html {
+  min-height: 100%;
 }
 
 body {
+  min-height: 100dvh;
   background: radial-gradient(120% 140% at 10% 0%, #eee8ff 0%, #faf8fc 45%, #fdeef6 100%);
+  background-attachment: fixed;
   color: #241e38;
 }
 

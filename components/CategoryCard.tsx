@@ -13,6 +13,7 @@ type CategoryCardProps = {
   onToggleItem: (item: Item) => void;
   onRenameItem: (item: Item, newName: string) => void;
   onDeleteItem: (item: Item) => void;
+  dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
 };
 
 export default function CategoryCard({
@@ -24,16 +25,27 @@ export default function CategoryCard({
   onToggleItem,
   onRenameItem,
   onDeleteItem,
+  dragHandleProps,
 }: CategoryCardProps) {
   const isOpen = !category.is_collapsed;
   const remaining = category.items.filter((i) => !i.is_checked).length;
 
   return (
     <section className="overflow-hidden rounded-xl2 bg-white shadow-card">
-      <div className="group flex items-center gap-2 px-4 py-3">
+      <div className="group flex items-center gap-1 px-2 py-3">
+        {dragHandleProps && (
+          <button
+            {...dragHandleProps}
+            aria-label={`Réordonner ${category.name}`}
+            className="shrink-0 cursor-grab touch-none rounded-full p-2 text-ink/25 active:cursor-grabbing"
+          >
+            ⠿
+          </button>
+        )}
+
         <button
           onClick={() => onToggleCollapse(category)}
-          className="flex flex-1 items-center gap-2.5 text-left"
+          className="flex flex-1 items-center gap-2.5 px-1 text-left"
           aria-expanded={isOpen}
         >
           <span className="text-xl leading-none">{category.emoji}</span>
@@ -95,3 +107,4 @@ export default function CategoryCard({
     </section>
   );
 }
+
