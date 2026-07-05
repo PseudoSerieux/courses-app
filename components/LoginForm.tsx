@@ -40,9 +40,13 @@ export default function LoginForm() {
       }
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) setMessage({ type: "error", text: error.message });
+      if (error) {
+        setMessage({ type: "error", text: error.message });
+      } else {
+        window.location.href = "/";
+        return;
+      }
     }
-
     setLoading(false);
   };
 
