@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-type Mode = "signin" | "signup";
+type Mode = "signin" | "signup" | "forgot";
 
 export default function LoginForm() {
   const [mode, setMode] = useState<Mode>("signin");
@@ -18,6 +18,21 @@ export default function LoginForm() {
     setLoading(true);
     const supabase = createClient();
 
+    if (mode === "forgot") {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
+      });
+      if (error) {
+        setMessage({ type: "error", text: error.message });
+      } else {
+        setMessage({
+          type: "info",
+          text: "Lien envoyé ✉️ Vérifiez votre boîte mail pour choisir un nouveau mot de passe.",
+        });
+      }
+      setLoading(false);
+      return;
+    }
     if (mode === "signup") {
       const { error, data } = await supabase.auth.signUp({
         email,
@@ -85,7 +100,18 @@ export default function LoginForm() {
             Créer un compte
           </button>
         </div>
-
+        {mode === "forgot" && (
+          <button
+            type="button"
+            onClick={() => {
+              setMode("signin");
+              setMessage(null);
+            }}
+            className="mb-1 text-xs text-ink/50 underline hover:text-violet"
+          >
+            ← Retour à la connexion
+          </button>
+        )}
         <form onSubmit={handleSubmit} className="mt-6 space-y-3">
           <input
             type="email"
@@ -95,21 +121,35 @@ export default function LoginForm() {
             placeholder="vous@exemple.com"
             className="w-full rounded-full border border-ink/10 bg-paper px-4 py-2.5 text-sm outline-none focus:border-violet focus:ring-2 focus:ring-violet/30"
           />
-          <input
-            type="password"
-            required
-            minLength={6}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Mot de passe"
-            className="w-full rounded-full border border-ink/10 bg-paper px-4 py-2.5 text-sm outline-none focus:border-violet focus:ring-2 focus:ring-violet/30"
-          />
+          {mode !== "forgot" && (
+            <input
+              type="password"
+              required
+              minLength={6}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Mot de passe"
+              className="w-full rounded-full border border-ink/10 bg-paper px-4 py-2.5 text-sm outline-none focus:border-violet focus:ring-2 focus:ring-violet/30"
+            />
+          )}
+          {mode === "signin" && (
+            <button
+              type="button"
+              onClick={() => {
+                setMode("forgot");
+                setMessage(null);
+              }}
+              className="text-xs text-ink/50 underline hover:text-violet"
+            >
+              Mot de passe oublié ?
+            </button>
+          )}
           <button
             type="submit"
             disabled={loading}
             className="w-full rounded-full bg-gradient-to-r from-violet to-pink py-2.5 text-sm font-semibold text-white shadow-card disabled:opacity-60"
           >
-            {mode === "signin" ? "Se connecter" : "Créer mon compte"}
+            {mode === "signin" ? "Se connecter" : mode === "signup" ? "Créer mon compte" : "Réinitialiser le mot de passe"}
           </button>
 
           {message && (

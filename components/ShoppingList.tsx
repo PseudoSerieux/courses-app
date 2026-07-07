@@ -18,6 +18,7 @@ import CategoryModal from "./CategoryModal";
 import ConfirmDialog from "./ConfirmDialog";
 import SettingsMenu from "./SettingsMenu";
 import LinkedListsModal from "./LinkedListsModal";
+import PrivacyModal from "./PrivacyModal";
 import Toast, { type ToastState } from "./Toast";
 
 type ShoppingListProps = {
@@ -43,6 +44,7 @@ export default function ShoppingList({
   const [modalCategory, setModalCategory] = useState<Category | null | "new">(null);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [linkModalOpen, setLinkModalOpen] = useState(Boolean(prefillJoinId));
+  const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
 
   const pendingDeletes = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -316,6 +318,7 @@ export default function ShoppingList({
           categories={categoriesWithItems}
           onOpenLinkedLists={() => setLinkModalOpen(true)}
           onExported={() => setToast({ message: "Copié pour Notes 📋" })}
+          onOpenPrivacy={() => setPrivacyModalOpen(true)}
         />
       </header>
 
@@ -388,6 +391,8 @@ export default function ShoppingList({
         currentUserId={currentUserId}
         prefillListId={prefillJoinId}
       />
+
+      <PrivacyModal open={privacyModalOpen} onClose={() => setPrivacyModalOpen(false)} />
 
       <Toast toast={toast} onDismiss={() => setToast(null)} />
     </div>

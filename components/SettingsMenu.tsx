@@ -8,9 +8,15 @@ type SettingsMenuProps = {
   categories: CategoryWithItems[];
   onOpenLinkedLists: () => void;
   onExported: () => void;
+  onOpenPrivacy: () => void;
 };
 
-export default function SettingsMenu({ categories, onOpenLinkedLists, onExported }: SettingsMenuProps) {
+export default function SettingsMenu({
+  categories,
+  onOpenLinkedLists,
+  onExported,
+  onOpenPrivacy,
+}: SettingsMenuProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -56,6 +62,15 @@ export default function SettingsMenu({ categories, onOpenLinkedLists, onExported
             className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm text-ink hover:bg-violet-soft"
           >
             <span aria-hidden>📤</span> Exporter vers Notes
+          </button>
+          <button
+            onClick={() => {
+              setOpen(false);
+              onOpenPrivacy();
+            }}
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm text-ink hover:bg-violet-soft"
+          >
+            <span aria-hidden>🔒</span> Confidentialité
           </button>
         </div>
       )}
