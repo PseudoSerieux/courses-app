@@ -11,6 +11,7 @@ type LinkedListsModalProps = {
   onClose: () => void;
   ownListId: string;
   activeListId: string;
+  isOwnerOfActiveList: boolean;
   currentUserId: string;
   prefillListId?: string;
 };
@@ -41,6 +42,7 @@ export default function LinkedListsModal({
   onClose,
   ownListId,
   activeListId,
+  isOwnerOfActiveList,
   currentUserId,
   prefillListId,
 }: LinkedListsModalProps) {
@@ -60,13 +62,14 @@ export default function LinkedListsModal({
         .from("list_members")
         .select("list_id")
         .order("created_at", { ascending: true });
-      setHistory((data ?? []).filter((row) => row.list_id !== ownListId));
+      setHistory((data ?? []).filter((row) => row.list_id !== activeListId));
 
-      const { data: memberData } = await supabase
-        .rpc("list_members_info", { target_list_id: ownListId });
+      const { data: memberData } = await supabase.rpc("list_members_info", {
+        target_list_id: activeListId,
+      });
       setMembers((memberData ?? []).filter((m: MemberEntry) => m.user_id !== currentUserId));
     })();
-  }, [open, prefillListId, ownListId, currentUserId, supabase]);
+  }, [open, prefillListId, activeListId, currentUserId, supabase]);
 
   if (!open) return null;
 
@@ -94,7 +97,10 @@ export default function LinkedListsModal({
 
   const handleKick = async (userId: string) => {
     setError(null);
-    const { error: rpcError } = await supabase.rpc("kick_member", { target_user_id: userId });
+    const { error: rpcError } = await supabase.rpc("kick_member", {
+      target_user_id: userId,
+      target_list_id: activeListId,
+    });
     if (rpcError) {
       setError(rpcError.message ?? "Une erreur est survenue, réessayez.");
       return;
@@ -102,7 +108,7 @@ export default function LinkedListsModal({
     setMembers((prev) => prev.filter((m) => m.user_id !== userId));
   };
 
-  const isOnOwnList = activeListId === ownListId;
+  const isOnOwnDefaultList = activeListId === ownListId;
 
   return (
     <div
@@ -127,13 +133,13 @@ export default function LinkedListsModal({
         </div>
 
         <p className="mt-3 text-xs uppercase tracking-wide text-ink/40">
-          Vous consultez actuellement
+          Cette liste (à partager)
         </p>
         <div className="mt-1.5 flex flex-wrap items-center gap-2">
           <div className="min-w-0 flex-1 basis-full sm:basis-auto">
             <CopyableId value={activeListId} />
           </div>
-          {!isOnOwnList && (
+          {!isOnOwnDefaultList && (
             <button
               onClick={handleUnlink}
               disabled={loading}
@@ -143,41 +149,40 @@ export default function LinkedListsModal({
             </button>
           )}
         </div>
-        {isOnOwnList && (
-          <p className="mt-1 text-xs text-ink/40">C&apos;est votre propre liste.</p>
-        )}
-
-        <p className="mt-5 text-xs uppercase tracking-wide text-ink/40">
-          Votre lien (à partager)
+        <p className="mt-1 text-xs text-ink/40">
+          {isOwnerOfActiveList
+            ? "C'est l'une de vos listes."
+            : "Vous êtes lié·e à cette liste, ce n'est pas la vôtre."}
         </p>
-        <div className="mt-1.5">
-          <CopyableId value={ownListId} />
-        </div>
 
-        {members.length > 0 && (
+        {isOwnerOfActiveList && (
           <>
             <div className="my-5 h-px bg-ink/10" />
             <p className="text-xs uppercase tracking-wide text-ink/40">
-              Personnes sur votre liste
+              Personnes sur cette liste
             </p>
-            <ul className="mt-1.5 space-y-1.5">
-              {members.map((member) => (
-                <li
-                  key={member.user_id}
-                  className="flex items-center justify-between gap-2 rounded-xl border border-ink/10 bg-paper px-3 py-2"
-                >
-                  <span className="min-w-0 flex-1 truncate text-xs text-ink/70">
-                    {member.email}
-                  </span>
-                  <button
-                    onClick={() => handleKick(member.user_id)}
-                    className="shrink-0 rounded-full bg-pink-soft px-3 py-1.5 text-xs font-semibold text-pink hover:bg-pink hover:text-white"
+            {members.length > 0 ? (
+              <ul className="mt-1.5 space-y-1.5">
+                {members.map((member) => (
+                  <li
+                    key={member.user_id}
+                    className="flex items-center justify-between gap-2 rounded-xl border border-ink/10 bg-paper px-3 py-2"
                   >
-                    Retirer
-                  </button>
-                </li>
-              ))}
-            </ul>
+                    <span className="min-w-0 flex-1 truncate text-xs text-ink/70">
+                      {member.email}
+                    </span>
+                    <button
+                      onClick={() => handleKick(member.user_id)}
+                      className="shrink-0 rounded-full bg-pink-soft px-3 py-1.5 text-xs font-semibold text-pink hover:bg-pink hover:text-white"
+                    >
+                      Retirer
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-1.5 text-xs text-ink/40">Personne d&apos;autre pour l&apos;instant.</p>
+            )}
           </>
         )}
 

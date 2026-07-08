@@ -5,6 +5,13 @@ export type Profile = {
   created_at: string;
 };
 
+export type ListInfo = {
+  id: string;
+  name: string;
+  owner_id: string;
+  created_at: string;
+};
+
 export type Category = {
   id: string;
   list_id: string;

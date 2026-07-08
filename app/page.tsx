@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import LoginForm from "@/components/LoginForm";
 import ShoppingList from "@/components/ShoppingList";
-import type { Profile } from "@/lib/types";
+import type { ListInfo, Profile } from "@/lib/types";
 
 export default async function Home({
   searchParams,
@@ -36,10 +36,22 @@ export default async function Home({
     profile = created;
   }
 
+  const { data: activeList, error: activeListError } = await supabase
+    .from("lists")
+    .select("*")
+    .eq("id", profile.active_list_id)
+    .single<ListInfo>();
+
+  if (activeListError || !activeList) {
+    throw new Error(
+      `Impossible de charger la liste active : ${activeListError?.message ?? "réponse vide du serveur"}`
+    );
+  }
+
   return (
     <main>
       <ShoppingList
-        activeListId={profile.active_list_id}
+        activeList={activeList}
         ownListId={profile.own_list_id}
         currentUserId={user.id}
         prefillJoinId={searchParams.join}
@@ -47,3 +59,4 @@ export default async function Home({
     </main>
   );
 }
+

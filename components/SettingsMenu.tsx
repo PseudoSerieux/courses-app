@@ -63,6 +63,7 @@ export default function SettingsMenu({
           >
             <span aria-hidden>📤</span> Exporter vers Notes
           </button>
+          <div className="my-1.5 h-px bg-ink/10" />
           <button
             onClick={() => {
               setOpen(false);

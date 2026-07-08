@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Category, CategoryWithItems, Item } from "@/lib/types";
+import type { Category, CategoryWithItems, Item, ListInfo } from "@/lib/types";
 import {
   DndContext,
   closestCenter,
@@ -17,12 +17,13 @@ import SortableCategoryCard from "./SortableCategoryCard";
 import CategoryModal from "./CategoryModal";
 import ConfirmDialog from "./ConfirmDialog";
 import SettingsMenu from "./SettingsMenu";
+import ListsMenu from "./ListsMenu";
 import LinkedListsModal from "./LinkedListsModal";
 import PrivacyModal from "./PrivacyModal";
 import Toast, { type ToastState } from "./Toast";
 
 type ShoppingListProps = {
-  activeListId: string;
+  activeList: ListInfo;
   ownListId: string;
   currentUserId: string;
   prefillJoinId?: string;
@@ -31,12 +32,13 @@ type ShoppingListProps = {
 const DELETE_GRACE_PERIOD_MS = 5000;
 
 export default function ShoppingList({
-  activeListId,
+  activeList,
   ownListId,
   currentUserId,
   prefillJoinId,
 }: ShoppingListProps) {
-  const listId = activeListId;
+  const listId = activeList.id;
+  const isOwnerOfActiveList = activeList.owner_id === currentUserId;
   const supabase = useMemo(() => createClient(), []);
   const [categories, setCategories] = useState<Category[]>([]);
   const [items, setItems] = useState<Item[]>([]);
@@ -126,7 +128,7 @@ export default function ShoppingList({
         },
         (payload) => {
           const incoming = payload.new as { active_list_id: string };
-          if (incoming.active_list_id !== activeListId) {
+          if (incoming.active_list_id !== listId) {
             window.location.reload();
           }
         }
@@ -136,7 +138,7 @@ export default function ShoppingList({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase, currentUserId, activeListId]);
+  }, [supabase, currentUserId, listId]);
 
   const categoriesWithItems: CategoryWithItems[] = categories.map((c) => ({
     ...c,
@@ -311,18 +313,21 @@ export default function ShoppingList({
   return (
     <div className="mx-auto max-w-lg px-4 pb-16 pt-8">
       <header className="mb-5 flex items-center justify-between gap-2">
-        <h1 className="rounded-full bg-gradient-to-r from-violet to-pink px-5 py-2 font-display text-lg font-semibold text-white shadow-card">
-          Courses
+        <h1 className="truncate rounded-full bg-gradient-to-r from-violet to-pink px-5 py-2 font-display text-lg font-semibold text-white shadow-card">
+          {activeList.name}
         </h1>
-        <SettingsMenu
-          categories={categoriesWithItems}
-          onOpenLinkedLists={() => setLinkModalOpen(true)}
-          onExported={() => setToast({ message: "Copié pour Notes 📋" })}
-          onOpenPrivacy={() => setPrivacyModalOpen(true)}
-        />
+        <div className="flex shrink-0 items-center gap-2">
+          <SettingsMenu
+            categories={categoriesWithItems}
+            onOpenLinkedLists={() => setLinkModalOpen(true)}
+            onExported={() => setToast({ message: "Copié pour Notes 📋" })}
+            onOpenPrivacy={() => setPrivacyModalOpen(true)}
+          />
+          <ListsMenu activeListId={listId} ownListId={ownListId} />
+        </div>
       </header>
 
-      {activeListId !== ownListId && (
+      {!isOwnerOfActiveList && (
         <button
           onClick={() => setLinkModalOpen(true)}
           className="mb-4 flex w-full items-center gap-2 rounded-xl bg-violet-soft px-4 py-2.5 text-left text-xs font-medium text-violet-deep transition hover:bg-violet/20"
@@ -387,7 +392,8 @@ export default function ShoppingList({
         open={linkModalOpen}
         onClose={() => setLinkModalOpen(false)}
         ownListId={ownListId}
-        activeListId={activeListId}
+        activeListId={listId}
+        isOwnerOfActiveList={isOwnerOfActiveList}
         currentUserId={currentUserId}
         prefillListId={prefillJoinId}
       />
