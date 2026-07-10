@@ -10,7 +10,11 @@ type CategoryModalProps = {
   onCancel: () => void;
 };
 
-const SUGGESTED_EMOJIS = ["🥩", "🥫", "🍎", "🥐", "🍰", "🍿", "🧴", "📦"];
+const SUGGESTED_EMOJIS = [
+  "🥩", "🥫", "🍎", "🥐", "🍰", "🍿", "🧴", "📦",
+  "🧀", "🥖", "🥕", "🐟", "🥛", "☕", "🧃", "🌶️",
+  "🍕", "🥗", "🧊", "🧻", "🧼", "🐾", "🎂", "🍫",
+];
 
 export default function CategoryModal({
   open,
@@ -68,6 +72,13 @@ export default function CategoryModal({
               {e}
             </button>
           ))}
+          <input
+            value={emoji}
+            onChange={(e) => setEmoji(e.target.value)}
+            placeholder="Autre…"
+            aria-label="Taper ou coller un autre emoji"
+            className="grid h-10 w-16 place-items-center rounded-full border border-dashed border-ink/20 bg-paper text-center text-lg outline-none focus:border-violet focus:ring-2 focus:ring-violet/30"
+          />
         </div>
 
         <label className="mt-4 block text-xs font-medium uppercase tracking-wide text-ink/50">

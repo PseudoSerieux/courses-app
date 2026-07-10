@@ -2,8 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { ListInfo } from "@/lib/types";
 import ConfirmDialog from "./ConfirmDialog";
+
+type VisibleList = {
+  id: string;
+  name: string;
+  owner_id: string;
+  created_at: string;
+  is_owner: boolean;
+};
 
 type ListsMenuProps = {
   activeListId: string;
@@ -12,9 +19,9 @@ type ListsMenuProps = {
 
 export default function ListsMenu({ activeListId, ownListId }: ListsMenuProps) {
   const [open, setOpen] = useState(false);
-  const [lists, setLists] = useState<ListInfo[]>([]);
+  const [lists, setLists] = useState<VisibleList[]>([]);
   const [newName, setNewName] = useState("");
-  const [listToDelete, setListToDelete] = useState<ListInfo | null>(null);
+  const [listToDelete, setListToDelete] = useState<VisibleList | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -24,8 +31,8 @@ export default function ListsMenu({ activeListId, ownListId }: ListsMenuProps) {
     if (!open) return;
     setError(null);
     (async () => {
-      const { data } = await supabase.rpc("my_lists");
-      setLists((data as ListInfo[]) ?? []);
+      const { data } = await supabase.rpc("my_visible_lists");
+      setLists((data as VisibleList[]) ?? []);
     })();
   }, [open, supabase]);
 
@@ -82,6 +89,37 @@ export default function ListsMenu({ activeListId, ownListId }: ListsMenuProps) {
     window.location.reload();
   };
 
+  const ownedLists = lists.filter((l) => l.is_owner);
+  const linkedLists = lists.filter((l) => !l.is_owner);
+
+  const renderRow = (list: VisibleList) => {
+    const isDefault = list.id === ownListId;
+    const isActive = list.id === activeListId;
+    return (
+      <li key={list.id} className="flex items-center gap-2">
+        <button
+          onClick={() => handleSwitch(list.id)}
+          disabled={loading}
+          className={`flex-1 truncate rounded-xl px-3 py-2 text-left text-sm transition ${
+            isActive ? "bg-violet text-white" : "bg-paper text-ink hover:bg-violet-soft"
+          }`}
+        >
+          {list.name}
+          {isDefault && <span className="ml-1 text-xs opacity-60">(défaut)</span>}
+        </button>
+        {list.is_owner && !isDefault && (
+          <button
+            onClick={() => setListToDelete(list)}
+            aria-label={`Supprimer ${list.name}`}
+            className="shrink-0 rounded-full p-1.5 text-ink/30 hover:bg-pink-soft hover:text-pink"
+          >
+            🗑
+          </button>
+        )}
+      </li>
+    );
+  };
+
   return (
     <div className="relative" ref={ref}>
       <button
@@ -96,38 +134,21 @@ export default function ListsMenu({ activeListId, ownListId }: ListsMenuProps) {
       {open && (
         <div className="absolute right-0 top-full z-40 mt-2 w-72 rounded-xl2 bg-white p-4 shadow-pop animate-pop-in">
           <p className="text-xs uppercase tracking-wide text-ink/40">Vos listes</p>
-
           <ul className="mt-2 space-y-1.5">
-            {lists.map((list) => {
-              const isDefault = list.id === ownListId;
-              const isActive = list.id === activeListId;
-              return (
-                <li key={list.id} className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleSwitch(list.id)}
-                    disabled={loading}
-                    className={`flex-1 truncate rounded-xl px-3 py-2 text-left text-sm transition ${
-                      isActive
-                        ? "bg-violet text-white"
-                        : "bg-paper text-ink hover:bg-violet-soft"
-                    }`}
-                  >
-                    {list.name}
-                    {isDefault && <span className="ml-1 text-xs opacity-60">(défaut)</span>}
-                  </button>
-                  {!isDefault && (
-                    <button
-                      onClick={() => setListToDelete(list)}
-                      aria-label={`Supprimer ${list.name}`}
-                      className="shrink-0 rounded-full p-1.5 text-ink/30 hover:bg-pink-soft hover:text-pink"
-                    >
-                      🗑
-                    </button>
-                  )}
-                </li>
-              );
-            })}
+            {ownedLists.map(renderRow)}
           </ul>
+
+          {linkedLists.length > 0 && (
+            <>
+              <div className="my-3 h-px bg-ink/10" />
+              <p className="text-xs uppercase tracking-wide text-ink/40">
+                Listes auxquelles vous participez
+              </p>
+              <ul className="mt-2 space-y-1.5">
+                {linkedLists.map(renderRow)}
+              </ul>
+            </>
+          )}
 
           <div className="my-3 h-px bg-ink/10" />
 

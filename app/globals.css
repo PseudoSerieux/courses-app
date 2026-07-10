@@ -39,3 +39,14 @@ body {
   text-decoration-color: #b7b0c9;
   color: #b7b0c9;
 }
+
+/* iOS Safari auto-zooms on focus when an input's font-size is under 16px.
+   Forcing 16px here avoids that jarring zoom, without touching the viewport
+   meta tag (which would also block legitimate pinch-to-zoom/accessibility). */
+@media (max-width: 640px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
