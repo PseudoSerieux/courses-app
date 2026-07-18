@@ -14,6 +14,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 import SortableCategoryCard from "./SortableCategoryCard";
+import CategoryCard from "./CategoryCard";
 import CategoryModal from "./CategoryModal";
 import ConfirmDialog from "./ConfirmDialog";
 import SettingsMenu from "./SettingsMenu";
@@ -21,6 +22,7 @@ import ListsMenu from "./ListsMenu";
 import LinkedListsModal from "./LinkedListsModal";
 import PrivacyModal from "./PrivacyModal";
 import Toast, { type ToastState } from "./Toast";
+import confetti from "canvas-confetti";
 
 type ShoppingListProps = {
   activeList: ListInfo;
@@ -46,10 +48,30 @@ export default function ShoppingList({
   const [modalCategory, setModalCategory] = useState<Category | null | "new">(null);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [linkModalOpen, setLinkModalOpen] = useState(Boolean(prefillJoinId));
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
   const [toast, setToast] = useState<ToastState>(null);
 
   const pendingDeletes = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const wasCompleteRef = useRef(false);
+
+  // Celebrates the moment everything gets checked off — fires once on the
+  // transition into 100%, not on every render while already complete, and
+  // resets automatically once new/unchecked items bring it back below 100%.
+  useEffect(() => {
+    const isComplete = items.length > 0 && items.every((i) => i.is_checked);
+    if (isComplete && !wasCompleteRef.current) {
+      confetti({
+        particleCount: 140,
+        spread: 90,
+        origin: { y: 0.6 },
+        colors: ["#7C5CFC", "#F45BA0", "#4E8CF0"],
+      });
+      setToast({ message: `Liste "${activeList.name}" terminée ! 🎉` });
+    }
+    wasCompleteRef.current = isComplete;
+  }, [items]);
 
   // Keeps the Realtime connection's auth token in sync with the current
   // session. Without this, postgres_changes can silently stop delivering
@@ -163,6 +185,26 @@ export default function ShoppingList({
     ...c,
     items: items.filter((i) => i.category_id === c.id).sort((a, b) => a.position - b.position),
   }));
+
+  const searchActive = searchQuery.trim().length > 0;
+  const query = searchQuery.trim().toLowerCase();
+
+  // While searching: a matching category name surfaces all its items; a
+  // matching item name surfaces just that item under its category. Matching
+  // categories auto-expand for the duration of the search only — their real
+  // collapsed state in the database is untouched.
+  const visibleCategories = !searchActive
+    ? categoriesWithItems
+    : categoriesWithItems
+        .map((c) => {
+          const categoryMatches = c.name.toLowerCase().includes(query);
+          return {
+            ...c,
+            is_collapsed: false,
+            items: categoryMatches ? c.items : c.items.filter((i) => i.name.toLowerCase().includes(query)),
+          };
+        })
+        .filter((c) => c.name.toLowerCase().includes(query) || c.items.length > 0);
 
   // Only the dedicated grip icon starts a drag (see dragHandleProps in
   // CategoryCard), so a small activation distance is enough to avoid
@@ -348,6 +390,19 @@ export default function ShoppingList({
           {activeList.name}
         </h1>
         <div className="flex shrink-0 items-center gap-2">
+          <button
+            onClick={() => {
+              setSearchOpen((o) => {
+                if (o) setSearchQuery("");
+                return !o;
+              });
+            }}
+            aria-label={searchOpen ? "Fermer la recherche" : "Rechercher"}
+            aria-expanded={searchOpen}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-lg shadow-card transition hover:text-violet"
+          >
+            {searchOpen ? "✕" : "🔍"}
+          </button>
           <SettingsMenu
             categories={categoriesWithItems}
             onOpenLinkedLists={() => setLinkModalOpen(true)}
@@ -357,6 +412,16 @@ export default function ShoppingList({
           <ListsMenu activeListId={listId} ownListId={ownListId} />
         </div>
       </header>
+
+      {searchOpen && (
+        <input
+          autoFocus
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Chercher un article ou une catégorie…"
+          className="mb-4 w-full rounded-full border border-ink/10 bg-white px-4 py-2.5 text-sm shadow-card outline-none focus:border-violet focus:ring-2 focus:ring-violet/30"
+        />
+      )}
 
       {items.length > 0 && (
         <div className="mb-4">
@@ -388,17 +453,10 @@ export default function ShoppingList({
       )}
 
       <div className="space-y-3">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleCategoryDragEnd}
-        >
-          <SortableContext
-            items={categoriesWithItems.map((c) => c.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            {categoriesWithItems.map((category) => (
-              <SortableCategoryCard
+        {searchActive ? (
+          visibleCategories.length > 0 ? (
+            visibleCategories.map((category) => (
+              <CategoryCard
                 key={category.id}
                 category={category}
                 onToggleCollapse={toggleCollapse}
@@ -410,17 +468,49 @@ export default function ShoppingList({
                 onRenameItem={renameItem}
                 onDeleteItem={deleteItem}
               />
-            ))}
-          </SortableContext>
-        </DndContext>
+            ))
+          ) : (
+            <p className="py-6 text-center text-sm text-ink/40">
+              Aucun résultat pour « {searchQuery.trim()} »
+            </p>
+          )
+        ) : (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleCategoryDragEnd}
+          >
+            <SortableContext
+              items={categoriesWithItems.map((c) => c.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {categoriesWithItems.map((category) => (
+                <SortableCategoryCard
+                  key={category.id}
+                  category={category}
+                  onToggleCollapse={toggleCollapse}
+                  onEdit={(c) => setModalCategory(c)}
+                  onDelete={(c) => setCategoryToDelete(c)}
+                  onAddItem={addItem}
+                  onToggleItem={toggleItem}
+                  onToggleAll={toggleAllInCategory}
+                  onRenameItem={renameItem}
+                  onDeleteItem={deleteItem}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
+        )}
       </div>
 
-      <button
-        onClick={() => setModalCategory("new")}
-        className="mt-4 w-full rounded-xl2 border-2 border-dashed border-violet/25 py-3 text-sm font-medium text-violet/70 transition hover:border-violet/50 hover:bg-violet-soft/40"
-      >
-        + Ajouter une catégorie
-      </button>
+      {!searchActive && (
+        <button
+          onClick={() => setModalCategory("new")}
+          className="mt-4 w-full rounded-xl2 border-2 border-dashed border-violet/25 py-3 text-sm font-medium text-violet/70 transition hover:border-violet/50 hover:bg-violet-soft/40"
+        >
+          + Ajouter une catégorie
+        </button>
+      )}
 
       <CategoryModal
         key={modalCategory === "new" ? "new" : modalCategory?.id ?? "closed"}
