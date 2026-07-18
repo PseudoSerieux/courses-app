@@ -1,7 +1,7 @@
 {
-  "name": "Courses à deux",
-  "short_name": "Courses",
-  "description": "Votre liste de courses, partagée avec votre moitié.",
+  "name": "List it",
+  "short_name": "List it",
+  "description": "Vos listes, prêtes en un instant — seul·e ou à plusieurs.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#FAF8FC",

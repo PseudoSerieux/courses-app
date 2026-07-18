@@ -12,6 +12,7 @@ type SortableCategoryCardProps = {
   onDelete: (category: CategoryWithItems) => void;
   onAddItem: (category: CategoryWithItems, name: string) => void;
   onToggleItem: (item: Item) => void;
+  onToggleAll: (category: CategoryWithItems) => void;
   onRenameItem: (item: Item, newName: string) => void;
   onDeleteItem: (item: Item) => void;
 };

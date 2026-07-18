@@ -43,6 +43,27 @@ returns setof lists as $$
   select * from lists where owner_id = auth.uid() order by created_at asc;
 $$ language sql security definer set search_path = public;
 
+-- All lists you can currently see (yours + ones you've linked to), flagged
+-- with whether you own each one — used to split the hamburger menu into
+-- "Vos listes" vs "Listes auxquelles vous participez".
+create or replace function my_visible_lists()
+returns table(id uuid, name text, owner_id uuid, created_at timestamptz, is_owner boolean) as $$
+  select l.id, l.name, l.owner_id, l.created_at, (l.owner_id = auth.uid()) as is_owner
+  from lists l
+  join list_members lm on lm.list_id = l.id
+  where lm.user_id = auth.uid()
+  order by is_owner desc, l.created_at asc;
+$$ language sql security definer set search_path = public;
+
+-- Lists you're linked to but don't own — shown in a separate section.
+create or replace function linked_lists()
+returns setof lists as $$
+  select l.* from lists l
+  join list_members lm on lm.list_id = l.id
+  where lm.user_id = auth.uid() and l.owner_id != auth.uid()
+  order by l.created_at asc;
+$$ language sql security definer set search_path = public;
+
 -- Deletes a list you own. Your original default list is protected (can't be
 -- deleted, enforced below and by the "on delete restrict" on own_list_id).
 -- Anyone currently viewing the deleted list — including you — falls back to

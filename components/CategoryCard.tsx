@@ -11,6 +11,7 @@ type CategoryCardProps = {
   onDelete: (category: CategoryWithItems) => void;
   onAddItem: (category: CategoryWithItems, name: string) => void;
   onToggleItem: (item: Item) => void;
+  onToggleAll: (category: CategoryWithItems) => void;
   onRenameItem: (item: Item, newName: string) => void;
   onDeleteItem: (item: Item) => void;
   dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>;
@@ -23,12 +24,14 @@ export default function CategoryCard({
   onDelete,
   onAddItem,
   onToggleItem,
+  onToggleAll,
   onRenameItem,
   onDeleteItem,
   dragHandleProps,
 }: CategoryCardProps) {
   const isOpen = !category.is_collapsed;
   const remaining = category.items.filter((i) => !i.is_checked).length;
+  const allChecked = category.items.length > 0 && remaining === 0;
 
   return (
     <section className="overflow-hidden rounded-xl2 bg-white shadow-card">
@@ -88,6 +91,24 @@ export default function CategoryCard({
 
       <div className={`collapse-grid ${isOpen ? "is-open" : ""}`}>
         <div>
+          {category.items.length > 0 && (
+            <div className="px-3 pb-1 pt-1">
+              <button
+                onClick={() => onToggleAll(category)}
+                className="flex items-center gap-3 py-1.5 text-left text-xs font-medium text-ink/50 transition hover:text-violet"
+              >
+                <span
+                  className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border-2 transition ${
+                    allChecked ? "border-violet bg-violet text-white" : "border-dashed border-ink/25 text-transparent"
+                  }`}
+                >
+                  <span className="text-[10px]">✓</span>
+                </span>
+                {allChecked ? "Tout décocher" : "Tout cocher"}
+              </button>
+              <div className="mt-1 h-px bg-ink/10" />
+            </div>
+          )}
           <ul className="space-y-0.5 px-2 pb-2">
             {category.items.map((item) => (
               <ItemRow

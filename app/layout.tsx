@@ -17,13 +17,13 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Courses à deux",
-  description: "Votre liste de courses partagée, sans prise de tête.",
+  title: "List it",
+  description: "Vos listes, prêtes en un instant — seul·e ou à plusieurs.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Courses à deux",
+    title: "List it",
   },
   icons: {
     icon: [

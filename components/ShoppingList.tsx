@@ -51,6 +51,25 @@ export default function ShoppingList({
 
   const pendingDeletes = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
+  // Keeps the Realtime connection's auth token in sync with the current
+  // session. Without this, postgres_changes can silently stop delivering
+  // events once the access token refreshes in the background — RLS then
+  // gets checked against a stale token, which looks exactly like "someone
+  // has to refresh the page to see the other person's change".
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) supabase.realtime.setAuth(session.access_token);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) supabase.realtime.setAuth(session.access_token);
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [supabase]);
+
   // Initial load
   useEffect(() => {
     (async () => {
@@ -273,6 +292,18 @@ export default function ShoppingList({
     await supabase.from("items").update({ is_checked: !item.is_checked }).eq("id", item.id);
   };
 
+  const toggleAllInCategory = async (category: CategoryWithItems) => {
+    if (category.items.length === 0) return;
+    const allChecked = category.items.every((i) => i.is_checked);
+    const newState = !allChecked;
+    const ids = category.items.map((i) => i.id);
+
+    setItems((prev) =>
+      prev.map((i) => (ids.includes(i.id) ? { ...i, is_checked: newState } : i))
+    );
+    await supabase.from("items").update({ is_checked: newState }).in("id", ids);
+  };
+
   const renameItem = async (item: Item, newName: string) => {
     const previousName = item.name;
     setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, name: newName } : i)));
@@ -356,6 +387,7 @@ export default function ShoppingList({
                 onDelete={(c) => setCategoryToDelete(c)}
                 onAddItem={addItem}
                 onToggleItem={toggleItem}
+                onToggleAll={toggleAllInCategory}
                 onRenameItem={renameItem}
                 onDeleteItem={deleteItem}
               />

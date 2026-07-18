@@ -1,6 +1,6 @@
-# Courses à deux 🛒
+# List it ✨
 
-Liste de courses partagée en temps réel, avec catégories repliables et export vers l'app Notes.
+Listes partagées en temps réel — courses, tâches, ou n'importe quoi d'autre — seul·e ou à plusieurs, avec catégories repliables et export vers l'app Notes.
 
 ## Stack
 
