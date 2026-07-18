@@ -358,6 +358,25 @@ export default function ShoppingList({
         </div>
       </header>
 
+      {items.length > 0 && (
+        <div className="mb-4">
+          <p className="mb-1.5 text-xs font-medium text-ink/50">
+            {items.filter((i) => i.is_checked).length} pris sur {items.length} article
+            {items.length > 1 ? "s" : ""}
+          </p>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-violet-soft">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-violet to-pink transition-all duration-300"
+              style={{
+                width: `${Math.round(
+                  (items.filter((i) => i.is_checked).length / items.length) * 100
+                )}%`,
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {!isOwnerOfActiveList && (
         <button
           onClick={() => setLinkModalOpen(true)}

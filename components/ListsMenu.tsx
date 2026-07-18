@@ -22,6 +22,8 @@ export default function ListsMenu({ activeListId, ownListId }: ListsMenuProps) {
   const [lists, setLists] = useState<VisibleList[]>([]);
   const [newName, setNewName] = useState("");
   const [listToDelete, setListToDelete] = useState<VisibleList | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -89,12 +91,55 @@ export default function ListsMenu({ activeListId, ownListId }: ListsMenuProps) {
     window.location.reload();
   };
 
+  const startEditing = (list: VisibleList) => {
+    setEditingId(list.id);
+    setDraftName(list.name);
+  };
+
+  const commitRename = async (list: VisibleList) => {
+    const trimmed = draftName.trim();
+    setEditingId(null);
+    if (!trimmed || trimmed === list.name) return;
+
+    setLists((prev) => prev.map((l) => (l.id === list.id ? { ...l, name: trimmed } : l)));
+    const { error: updateError } = await supabase
+      .from("lists")
+      .update({ name: trimmed })
+      .eq("id", list.id);
+    if (updateError) {
+      setError(updateError.message);
+      setLists((prev) => prev.map((l) => (l.id === list.id ? { ...l, name: list.name } : l)));
+      return;
+    }
+    if (list.id === activeListId) window.location.reload();
+  };
+
   const ownedLists = lists.filter((l) => l.is_owner);
   const linkedLists = lists.filter((l) => !l.is_owner);
 
   const renderRow = (list: VisibleList) => {
     const isDefault = list.id === ownListId;
     const isActive = list.id === activeListId;
+    const isEditing = editingId === list.id;
+
+    if (isEditing) {
+      return (
+        <li key={list.id} className="flex items-center gap-2">
+          <input
+            autoFocus
+            value={draftName}
+            onChange={(e) => setDraftName(e.target.value)}
+            onBlur={() => commitRename(list)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitRename(list);
+              if (e.key === "Escape") setEditingId(null);
+            }}
+            className="flex-1 rounded-xl border border-violet/40 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-violet/30"
+          />
+        </li>
+      );
+    }
+
     return (
       <li key={list.id} className="flex items-center gap-2">
         <button
@@ -107,6 +152,15 @@ export default function ListsMenu({ activeListId, ownListId }: ListsMenuProps) {
           {list.name}
           {isDefault && <span className="ml-1 text-xs opacity-60">(défaut)</span>}
         </button>
+        {list.is_owner && (
+          <button
+            onClick={() => startEditing(list)}
+            aria-label={`Renommer ${list.name}`}
+            className="shrink-0 rounded-full p-1.5 text-ink/30 hover:bg-violet-soft hover:text-violet"
+          >
+            ✎
+          </button>
+        )}
         {list.is_owner && !isDefault && (
           <button
             onClick={() => setListToDelete(list)}
